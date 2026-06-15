@@ -1,0 +1,13 @@
+build/
+*.exe
+*.lib
+*.dll
+*.obj
+*.pdb
+*.ilk
+*.exp
+third_party/rplidar_sdk/
+third_party/json.hpp
+.vs/
+CMakeCache.txt
+CMakeFiles/
