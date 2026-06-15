@@ -1,153 +1,197 @@
-# RPLidar C1 GUI Visualizer
+# RPLidar C1 Research Visualizer
 
-A C++17 / Qt6 desktop application for real-time visualization and data recording
-from a **Slamtec RPLidar C1** connected via USB.
+> A real-time 2D LiDAR visualization and data acquisition tool built in **C++17 / Qt6**, designed for research and robotics applications using the **Slamtec RPLidar C1**.
+
+---
+
+## Screenshot
+
+![RPLidar C1 Research Visualizer — Live Scan](docs/screenshot1.png)
+*Live 360° polar scan showing distance colour mapping (green=near → purple=far), nearest obstacle detection at 220mm @ 175°, scan rate 10.1 Hz, 507 points per revolution*
 
 ---
 
 ## Features
 
-| Feature | Details |
-|---|---|
-| Live 2D polar scan view | Custom QPainter canvas with zoom (scroll wheel) and pan (drag) |
-| Colour-by-distance | Near = bright green → Far = blue |
-| Range ring grid | Auto-scaled or fixed range |
-| Quality filter | Slider to hide low-confidence points |
-| Motor speed control | Adjustable RPM via SDK |
-| Frame recording | Buffer N frames with one button click |
-| Snapshot | Save the current canvas as PNG |
-| Export | CSV · PCD · PLY · JSON · MCAP (ROS bag) |
+### Visualization
+- **Real-time 360° polar scan canvas** — rendered at 30 Hz using Qt6 QPainter
+- **Distance colour map** — green (near) → cyan → blue → purple (far)
+- **Point trails** — last 5 frames shown as fading ghosts for motion tracking
+- **Nearest obstacle detection** — highlighted in red with distance and angle label
+- **Three view modes** — Polar, Cartesian (XY), and Heatmap
+- **Zoom and pan** — scroll wheel to zoom, drag to pan, double-click to reset
+- **Range ring grid** — auto-scaled with N/E/S/W cardinal markers
+
+### Data Acquisition
+- Connects to RPLidar C1 via USB (CP2102 serial bridge) at 460800 baud
+- Runs the lidar driver in a dedicated QThread — GUI never freezes
+- Thread-safe ring buffer between acquisition and rendering layers
+- Live metrics: point count, scan rate (Hz), min/max distance, nearest obstacle
+
+### Recording & Export
+| Format | Extension | Best for |
+|--------|-----------|----------|
+| CSV | `.csv` | Excel, MATLAB, pandas |
+| PCD | `.pcd` | PCL, ROS, CloudCompare |
+| PLY | `.ply` | MeshLab, Blender, CloudCompare |
+| JSON | `.json` | Web apps, REST APIs |
+| MCAP | `.mcap` | ROS 2 bag (CSV-compatible) |
+
+### Controls
+- Motor speed adjustment (100–1023 RPM)
+- Minimum quality threshold filter
+- Maximum and minimum range filters
+- Point trail toggle
+- Frame accumulation mode
+- Individual export buttons per format
 
 ---
 
-## Prerequisites
+## System Architecture
+
+```
+Slamtec RPLidar C1
+        │ USB (CP2102, 460800 baud)
+        ▼
+   LidarDriver (QThread)
+   └── Slamtec C++ SDK
+        │ ScanFrame (vector of ScanPoints)
+        ▼
+   ScanBuffer (thread-safe ring buffer)
+        │
+        ├──▶ ScanWidget (QPainter canvas, 30 Hz)
+        ├──▶ StatsPanel (live metrics + charts)
+        ├──▶ ControlPanel (settings + recording)
+        └──▶ DataExporter (CSV / PCD / PLY / JSON / MCAP)
+```
+
+---
+
+## Requirements
 
 | Tool | Version |
-|---|---|
+|------|---------|
+| C++ compiler | MSVC 2022+ / GCC 11+ / Clang 14+ |
 | CMake | ≥ 3.20 |
 | Qt6 | 6.x (Core, Gui, Widgets, SerialPort) |
-| C++ compiler | GCC 11+ / Clang 14+ / MSVC 2022 |
-| Slamtec RPLidar SDK | Latest from GitHub |
+| Slamtec RPLidar SDK | Latest |
 | nlohmann/json | v3.11+ (single header) |
 
 ---
 
-## Setup
+## Build Instructions
 
-### 1 — Get the RPLidar SDK
+### 1 — Clone the repository
 
 ```bash
-git clone https://github.com/Slamtec/rplidar_sdk.git third_party/rplidar_sdk
+git clone https://github.com/Smithil23/rplidar-c1-visualizer.git
+cd rplidar-c1-visualizer
 ```
 
-### 2 — Get nlohmann/json
+### 2 — Get dependencies
 
 ```bash
+# Slamtec SDK
+git clone https://github.com/Slamtec/rplidar_sdk.git third_party/rplidar_sdk
+
+# nlohmann/json (single header)
 curl -L https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp \
      -o third_party/json.hpp
 ```
 
-### 3 — Install Qt6
+### 3 — Build (Windows)
 
-**Ubuntu / Debian:**
+Open **Developer Command Prompt for Visual Studio 2026** and run:
+
+```cmd
+mkdir build && cd build
+cmake .. -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="C:\Qt\6.8.3\msvc2022_64"
+cmake --build . --config Release
+```
+
+### 4 — Build (Linux)
+
 ```bash
 sudo apt install qt6-base-dev qt6-serialport-dev
-```
-
-**Windows** — use the [Qt Online Installer](https://www.qt.io/download) and select:
-- Qt 6.x → MSVC 2022 64-bit
-- Qt Serial Port
-
-**macOS:**
-```bash
-brew install qt6
-```
-
-### 4 — Build
-
-```bash
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j$(nproc)
 ```
 
-On Windows with MSVC:
-```cmd
-mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64
-cmake --build . --config Release
-```
+---
+
+## Usage
+
+1. Plug in the RPLidar C1 via USB
+2. Launch `RPLidarGUI.exe`
+3. Select the COM port from the dropdown (e.g. `COM3 — Silicon Labs`)
+4. Click **Connect** — the motor spins up and scanning begins
+5. Use **scroll wheel** to zoom, **drag** to pan, **double-click** to reset view
+6. Click **● Start recording** to buffer scan frames
+7. Click **■ Stop recording** when done
+8. Click any export button (CSV / PCD / PLY / JSON / MCAP) to save data
 
 ---
 
-## Serial port access (Linux)
+## Hardware
 
-Add your user to the `dialout` group so the app can open `/dev/ttyUSB0`:
-
-```bash
-sudo usermod -aG dialout $USER
-# log out and back in
-```
-
----
-
-## Running
-
-```bash
-./RPLidarGUI          # Linux / macOS
-RPLidarGUI.exe        # Windows
-```
-
-1. Plug in the RPLidar C1 via USB.
-2. Select the correct COM / ttyUSB port in the left panel.
-3. Click **Connect**.
-4. The scan appears in the dark canvas immediately.
-5. Use the **scroll wheel** to zoom and **drag** to pan.
-6. Click **● Start recording** to buffer frames.
-7. Click **💾 Export data…** to save to your chosen format.
+| Item | Detail |
+|------|--------|
+| Sensor | Slamtec RPLidar C1 |
+| Interface | USB via CP2102 UART bridge |
+| Baud rate | 460800 |
+| Scan range | 360° · up to 12m |
+| Scan rate | ~10 Hz |
+| Points/scan | ~500 |
+| Firmware | v1.2 |
 
 ---
 
-## Export formats
-
-| Format | File | Best for |
-|---|---|---|
-| CSV | `.csv` | Excel, MATLAB, pandas |
-| PCD | `.pcd` | PCL, ROS, CloudCompare |
-| PLY | `.ply` | MeshLab, Blender, CloudCompare |
-| JSON | `.json` | Web apps, REST APIs |
-| MCAP | `.mcap` | ROS 2 bag (CSV-inside for compatibility) |
-
----
-
-## Project structure
+## Project Structure
 
 ```
-rplidar-gui/
+rplidar-c1-visualizer/
 ├── CMakeLists.txt
+├── docs/
+│   └── screenshot1.png
 ├── third_party/
-│   ├── rplidar_sdk/          ← Slamtec SDK (git clone)
-│   └── json.hpp              ← nlohmann/json single header
+│   ├── rplidar_sdk/             ← Slamtec SDK (git clone)
+│   └── json.hpp                 ← nlohmann/json (single header)
 └── src/
     ├── main.cpp
     ├── core/
-    │   ├── ScanPoint.h       ← data type (angle, distance, quality)
-    │   ├── ScanBuffer.h/.cpp ← thread-safe ring buffer
-    │   ├── LidarDriver.h/.cpp← SDK wrapper, runs in QThread
-    │   └── DataExporter.h/.cpp← all 5 export formats
+    │   ├── ScanPoint.h
+    │   ├── ScanBuffer.h/.cpp
+    │   ├── LidarDriver.h/.cpp
+    │   └── DataExporter.h/.cpp
     └── gui/
-        ├── MainWindow.h/.cpp ← top-level window
-        ├── ScanWidget.h/.cpp ← 2D polar canvas (QPainter)
-        ├── ControlPanel.h/.cpp← left sidebar
-        └── ExportDialog.h/.cpp← export dialog
+        ├── MainWindow.h/.cpp
+        ├── ScanWidget.h/.cpp
+        ├── ControlPanel.h/.cpp
+        ├── StatsPanel.h/.cpp
+        └── ExportDialog.h/.cpp
 ```
 
 ---
 
-## Next steps (Phase 2+)
+## Technologies
 
-- [ ] **Heat-map mode**: accumulate multiple frames into a density map
-- [ ] **Object detection overlay**: highlight clusters / nearest obstacle
-- [ ] **SLAM preview**: integrate with hector_slam or cartographer output
-- [ ] **Real MCAP writing**: use the official `mcap` C++ library for full ROS2 bags
-- [ ] **Dark/light theme toggle**: extend the Fusion palette switcher
+- **C++17** — core language
+- **Qt 6** — GUI framework (QPainter, QThread, QSerialPort, QTimer)
+- **Slamtec RPLidar SDK** — hardware communication
+- **nlohmann/json** — JSON export
+- **CMake** — cross-platform build system
+
+---
+
+## Author
+
+**Smithil Wadkar**
+Masters Project — Real-time LiDAR Data Acquisition and Visualization
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+The Slamtec RPLidar SDK is subject to its own license terms.
